@@ -11,7 +11,7 @@ import setags.data.utils as utils
 def encode_text(text: str, encoding: dict, default=utils.UNKNOWN_WORD_CODE):
     clean_text = re.sub(r'\W+', ' ', text).strip()
     tokens = clean_text.split()
-    return [encoding.get(token, default) for token in tokens]
+    return [encoding.get(token, default) for token in tokens] + [0]
 
 
 def prepare_data(filenames: list, data_dir: Path, train_fraction=1.0):
@@ -19,7 +19,7 @@ def prepare_data(filenames: list, data_dir: Path, train_fraction=1.0):
     train_dir = data_dir / utils.TRAIN_DATA_SUBDIR
     test_dir = data_dir / utils.TEST_DATA_SUBDIR
 
-    vocab = ['<PAD>'] + utils.load_vocabulary(data_dir)
+    vocab = utils.load_vocabulary(data_dir)
     word_encoding = {value: i for i, value in enumerate(vocab)}
 
     for filename in filenames:

@@ -20,15 +20,23 @@ UNKNOWN_WORD_CODE = -1
 
 
 def load_vocabulary(data_dir: Path) -> list:
+    """
+    Loads the vocabulary. If it does not exist, then it is created from the embeddings.
+    A word with index `0` is the padding/EOS symbol `</s>`.
+
+    :param data_dir: path to the problem's data directory
+    :return: list of words
+    """
     vocab_path = data_dir / VOCAB_SUBPATH
     vocab = load_list(vocab_path)
     if len(vocab) > 0:
         return vocab
 
+    logger.warning("Vocabulary file not found. Loading embeddings to generate the vocabulary file.")
     import gensim
     embeddings_path = data_dir / EMBEDDINGS_SUBPATH
     embeddings = gensim.models.KeyedVectors.load_word2vec_format(str(embeddings_path), binary=True)
-    vocab = list(embeddings.vocab.keys())
+    vocab = embeddings.index2word
     store_list(vocab, vocab_path)
     return vocab
 
