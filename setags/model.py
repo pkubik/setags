@@ -11,6 +11,7 @@ class Features(DictWrapper):
         self.title_length = None
         self.content = None
         self.content_length = None
+        self.embeddings_initializer = None
 
 
 class Labels(DictWrapper):
@@ -43,6 +44,10 @@ def model_fn(mode, features, labels, params):
         l = Labels.from_dict(labels)
         assert isinstance(l, Labels)
 
+    embeddings = tf.get_variable(
+        'embeddings', initializer=f.embeddings_initializer)
+    embedded_title = tf.nn.embedding_lookup(embeddings, f.title)
+
     # Assign a default value to the train_op and loss to be passed for modes other than TRAIN
     loss = None
     train_op = None
@@ -50,7 +55,7 @@ def model_fn(mode, features, labels, params):
     # Following part of the network will be constructed only for training
     if mode != tf.estimator.ModeKeys.PREDICT:
         loss = tf.constant(13.0)
-        train_op = tf.Print(f.title, [f.original_title[0], f.title[0], tf.shape(f.title), f.title_length[0]])
+        train_op = tf.Print(f.title, [embedded_title, f.original_title[0]])
         # train_op = tf.contrib.layers.optimize_loss(
         #     loss=loss,  # Total loss from the losses collection
         #     global_step=tf.contrib.framework.get_global_step(),

@@ -1,7 +1,13 @@
 from pathlib import Path
 
+import numpy as np
 import tensorflow as tf
 import setags.data.utils as utils
+import logging
+
+EMBEDDING_SIZE = 300
+
+logger = logging.getLogger(__name__)
 
 
 def create_input_fn(data_dir: Path, batch_size: int, for_train=True, num_epochs=1):
@@ -11,6 +17,12 @@ def create_input_fn(data_dir: Path, batch_size: int, for_train=True, num_epochs=
     else:
         test_data_dir = data_dir / utils.TEST_DATA_SUBDIR
         filenames = [str(filename) for filename in test_data_dir.iterdir()]
+
+    vocabulary = utils.load_vocabulary(data_dir)
+
+    def embeddings_init_fn():
+        logger.warning("Initializing words embeddings")
+        return utils.load_embeddings_matrix(data_dir).astype(np.float32)
 
     def input_fn():
         filename_queue = tf.train.string_input_producer(filenames, num_epochs=num_epochs)
@@ -42,6 +54,10 @@ def create_input_fn(data_dir: Path, batch_size: int, for_train=True, num_epochs=
         features = {key: batched_fields[key]
                     for key in ['id', 'original_title', 'title', 'title_length', 'content', 'content_length']}
         labels = {key: batched_fields[key] for key in ['tags', 'tags_length']}
+
+        [embeddings_init] = tf.py_func(embeddings_init_fn, [], [tf.float32], stateful=True)
+        embeddings_init.set_shape([len(vocabulary), EMBEDDING_SIZE])
+        features['embeddings_initializer'] = embeddings_init
 
         return features, labels
 

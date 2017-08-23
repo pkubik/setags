@@ -2,6 +2,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +16,7 @@ TRAIN_DATA_SUBDIR = 'train'
 TEST_DATA_SUBDIR = 'test'
 RAW_DATA_SUBDIR = 'raw'
 EMBEDDINGS_SUBPATH = 'embeddings.bin'
+FAST_EMBEDDINGS_SUBPATH = 'embeddings.npy'
 VOCAB_SUBPATH = 'vocab.txt'
 UNKNOWN_WORD_CODE = -1
 
@@ -36,9 +38,20 @@ def load_vocabulary(data_dir: Path) -> list:
     import gensim
     embeddings_path = data_dir / EMBEDDINGS_SUBPATH
     embeddings = gensim.models.KeyedVectors.load_word2vec_format(str(embeddings_path), binary=True)
-    vocab = embeddings.index2word
+    vocab = [w for w in embeddings.index2word if '_' not in w and '#' not in w]
+
+    logger.info("Storing filtered embeddings.")
+    filtered_vectors = [embeddings[w].astype(np.float32) for w in vocab]
+    np.save(str(data_dir / FAST_EMBEDDINGS_SUBPATH), filtered_vectors)
+
+    logger.info("Storing a vocabulary of size {}.".format(len(vocab)))
     store_list(vocab, vocab_path)
+
     return vocab
+
+
+def load_embeddings_matrix(data_dir: Path) -> np.ndarray:
+    return np.load(str(data_dir / FAST_EMBEDDINGS_SUBPATH))
 
 
 def get_data_dir() -> Path:
