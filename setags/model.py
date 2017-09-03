@@ -6,7 +6,6 @@ from setags.utils import DictWrapper
 class Features(DictWrapper):
     def __init__(self):
         self.id = None
-        self.original_title = None
         self.title = None
         self.title_length = None
         self.content = None
@@ -22,31 +21,49 @@ class Labels(DictWrapper):
 
 class Params(DictWrapper):
     def __init__(self):
-        self.num_epochs = 20
-        self.batch_size = 50
-        self.num_rnn_units = 100
-        self.learning_rate = 0.04
-        self.dropout_rate = 0.4
+        self.num_epochs = 100
+        self.batch_size = 64
+        self.max_tag_idx = None
+        self.num_rnn_units = 500
+        self.learning_rate = 0.002
 
 
 DEFAULT_PARAMS = Params().as_dict()
 
 
 def model_fn(mode, features, labels, params):
-    p = Params.from_dict(params)
-    assert isinstance(p, Params)
+    _params = Params.from_dict(params)
+    _features = Features.from_dict(features)
 
-    f = Features.from_dict(features)
-    assert isinstance(f, Features)
-
-    l = Labels()
+    _labels = None
     if mode != tf.estimator.ModeKeys.PREDICT:
-        l = Labels.from_dict(labels)
-        assert isinstance(l, Labels)
+        _labels = Labels.from_dict(labels)
 
-    embeddings = tf.get_variable(
-        'embeddings', initializer=f.embeddings_initializer)
-    embedded_title = tf.nn.embedding_lookup(embeddings, f.title)
+    return build_model(mode, _features, _labels, _params)
+
+
+def build_model(mode: tf.estimator.ModeKeys,
+                features: Features,
+                labels: Labels,
+                params: Params) -> tf.estimator.EstimatorSpec:
+
+    with tf.device("/cpu:0"):
+        embeddings = tf.get_variable(
+            'embeddings', initializer=features.embeddings_initializer, trainable=False)
+
+    embedded_title = tf.nn.embedding_lookup(embeddings, tf.nn.relu(features.title))
+    embedded_content = tf.nn.embedding_lookup(embeddings, tf.nn.relu(features.content))
+
+    with tf.variable_scope("encoder"):
+        with tf.variable_scope("title"):
+            title_encoder = RNNLayer(embedded_title, features.title_length, params.num_rnn_units)
+        with tf.variable_scope("content"):
+            content_encoder = RNNLayer(
+                embedded_content, features.content_length, params.num_rnn_units, title_encoder.final_state)
+
+    with tf.variable_scope("decoder"):
+        first_tag_logits = tf.layers.dense(content_encoder.final_state, params.max_tag_idx)
+        first_tag_prediction = tf.argmax(first_tag_logits, -1)
 
     # Assign a default value to the train_op and loss to be passed for modes other than TRAIN
     loss = None
@@ -54,20 +71,29 @@ def model_fn(mode, features, labels, params):
     eval_metric_ops = None
     # Following part of the network will be constructed only for training
     if mode != tf.estimator.ModeKeys.PREDICT:
-        loss = tf.constant(13.0)
-        train_op = tf.Print(f.title, [embedded_title, f.original_title[0]])
-        # train_op = tf.contrib.layers.optimize_loss(
-        #     loss=loss,  # Total loss from the losses collection
-        #     global_step=tf.contrib.framework.get_global_step(),
-        #     learning_rate=p.learning_rate,
-        #     optimizer="Adagrad")
+        first_tag = tf.nn.relu(labels.tags[:, 0])
+        first_one_hot_tag = tf.one_hot(first_tag, params.max_tag_idx, dtype=tf.float32)
+        tf.losses.softmax_cross_entropy(first_one_hot_tag, first_tag_logits)
+
+        loss = tf.losses.get_total_loss()
+        tf.summary.scalar('loss', loss)
+
+        train_op = tf.contrib.layers.optimize_loss(
+            loss=loss,
+            global_step=tf.contrib.framework.get_global_step(),
+            learning_rate=params.learning_rate,
+            optimizer="Adam")
 
         if mode == tf.estimator.ModeKeys.EVAL:
+            accuracy = tf.metrics.accuracy(first_tag, first_tag_prediction)
+
             eval_metric_ops = {
-                'accuracy': tf.constant(44.0)
+                'accuracy': accuracy
             }
 
-    predictions = {}
+    predictions = {
+        'tags': first_tag_prediction,
+    }
 
     return tf.estimator.EstimatorSpec(
         mode=mode,
@@ -75,3 +101,10 @@ def model_fn(mode, features, labels, params):
         loss=loss,
         train_op=train_op,
         eval_metric_ops=eval_metric_ops)
+
+
+class RNNLayer:
+    def __init__(self, inputs: tf.Tensor, inputs_lengths: tf.Tensor, num_hidden: int, initial_state: tf.Tensor = None):
+        cell = tf.nn.rnn_cell.GRUCell(num_hidden, activation=tf.nn.tanh)
+        self.outputs, self.final_state = tf.nn.dynamic_rnn(
+            cell, inputs, inputs_lengths, initial_state, dtype=tf.float32)

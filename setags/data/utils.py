@@ -7,7 +7,7 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
-MIN_AFTER_DEQUEUE = 512
+MIN_AFTER_DEQUEUE = 1024
 PARAMS_FILENAME = 'params.json'
 MODELS_DIR_VARIABLE_NAME = 'TENSORFLOW_MODELS_DIR'
 DATA_DIR_VARIABLE_NAME = 'RESEARCH_DATA_DIR'
@@ -18,6 +18,7 @@ RAW_DATA_SUBDIR = 'raw'
 EMBEDDINGS_SUBPATH = 'embeddings.bin'
 FAST_EMBEDDINGS_SUBPATH = 'embeddings.npy'
 VOCAB_SUBPATH = 'vocab.txt'
+TAGS_SUBPATH = 'tags.txt'
 UNKNOWN_WORD_CODE = -1
 
 

@@ -24,10 +24,10 @@ def main():
         data_dir = du.get_data_dir()
     else:
         data_dir = Path(cli.data_dir)
-    data_filenames = DATA_FILENAMES[:1]
+    data_filenames = DATA_FILENAMES
     print("Using '{}' as data directory.".format(str(data_dir)))
     print("Preprocessing files {}.".format(data_filenames))
-    preprocessing.prepare_data(data_filenames, data_dir, train_fraction=0.8)
+    preprocessing.prepare_data(data_filenames, data_dir, train_fraction=0.9)
 
 
 if __name__ == '__main__':

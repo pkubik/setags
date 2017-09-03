@@ -8,8 +8,11 @@ import tensorflow as tf
 import setags.data.utils as utils
 
 
+NUM_EXAMPLES_PER_RECORDS_FILE = 2000
+
+
 def encode_text(text: str, encoding: dict, default=utils.UNKNOWN_WORD_CODE):
-    clean_text = re.sub(r'\W+', ' ', text).strip()
+    clean_text = re.sub(r'[^\w-]+', ' ', text).strip()
     tokens = clean_text.split()
     return [encoding.get(token, default) for token in tokens] + [0]
 
@@ -19,8 +22,13 @@ def prepare_data(filenames: list, data_dir: Path, train_fraction=1.0):
     train_dir = data_dir / utils.TRAIN_DATA_SUBDIR
     test_dir = data_dir / utils.TEST_DATA_SUBDIR
 
+    train_dir.mkdir(parents=True, exist_ok=True)
+    test_dir.mkdir(parents=True, exist_ok=True)
+
     vocab = utils.load_vocabulary(data_dir)
     word_encoding = {value: i for i, value in enumerate(vocab)}
+    tags = utils.load_list(data_dir / utils.TAGS_SUBPATH)
+    tag_encoding = {value: i for i, value in enumerate(tags)}
 
     for filename in filenames:
         name, _ = filename.split('.')
@@ -34,10 +42,10 @@ def prepare_data(filenames: list, data_dir: Path, train_fraction=1.0):
             np.random.seed(0)
             train_df = df.sample(frac=train_fraction)
 
-        store_tfrecords_from_df(name, word_encoding, train_df, train_dir)
+        store_tfrecords_from_df(name, word_encoding, tag_encoding, train_df, train_dir)
         if train_fraction < 1.0:
             test_df = df.drop(train_df.index)
-            store_tfrecords_from_df(name, word_encoding, test_df, test_dir)
+            store_tfrecords_from_df(name, word_encoding, tag_encoding, test_df, test_dir)
 
 
 def encoded_string_features_dict(name, value, word_encoding):
@@ -52,15 +60,30 @@ def string_feature(value):
     return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value.encode()]))
 
 
-def store_tfrecords_from_df(name: str, word_encoding: dict, train_df: pd.DataFrame, train_dir: Path):
-    record_writer = tf.python_io.TFRecordWriter(str(train_dir / '{}.tfrecords'.format(name)))
-    for _, row in train_df.iterrows():
+def store_tfrecords_from_df(name: str,
+                            word_encoding: dict,
+                            tag_encoding: dict,
+                            df: pd.DataFrame,
+                            output_dir: Path):
+    """
+    Store a data frame as TFRecords. It splits the data frame across multiple files to allow better shuffling.
+
+    :param name: base name for the output filename (without extension)
+    :param word_encoding: words encoding to be used
+    :param tag_encoding: tags encoding to be used
+    :param df: data frame to store
+    :param output_dir: directory used to store the output files
+    """
+    record_writer = None
+    for i, (_, row) in enumerate(df.iterrows()):
+        if i % NUM_EXAMPLES_PER_RECORDS_FILE == 0:
+            file_number = int(i / NUM_EXAMPLES_PER_RECORDS_FILE)
+            record_writer = tf.python_io.TFRecordWriter(str(output_dir / '{}{:04d}.tfrecords'.format(name, file_number)))
         features = {
             'id': string_feature(row['id']),
-            'original_title': string_feature(row['title']),
         }
         features.update(encoded_string_features_dict('title', row['title'], word_encoding))
         features.update(encoded_string_features_dict('content', row['content'], word_encoding))
-        features.update(encoded_string_features_dict('tags', row['tags'], word_encoding))
+        features.update(encoded_string_features_dict('tags', row['tags'], tag_encoding))
         example = tf.train.Example(features=tf.train.Features(feature=features))
         record_writer.write(example.SerializeToString())

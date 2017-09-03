@@ -21,7 +21,11 @@ def run(action: str, model_dir: Path, overrides: dict):
     batch_size = params['batch_size']
 
     data_dir = du.get_data_dir()
+    train_dir = data_dir / du.TRAIN_DATA_SUBDIR
+    test_dir = data_dir / du.TEST_DATA_SUBDIR
 
+    tags = du.load_list(data_dir / du.TAGS_SUBPATH)
+    params['max_tag_idx'] = len(tags)
     create_input_fn = partial(di.create_input_fn, batch_size=batch_size, data_dir=data_dir)
 
     # Create estimator
@@ -34,11 +38,13 @@ def run(action: str, model_dir: Path, overrides: dict):
 
     # Train model
     if action == 'train':
-        e.train(input_fn=create_input_fn(for_train=True, num_epochs=num_epochs))
+        e.train(input_fn=create_input_fn(data_subdir=train_dir, for_train=True, num_epochs=num_epochs))
 
     # Evaluate model
-    metrics = e.evaluate(input_fn=create_input_fn(for_train=False))
-    print('Test set accuracy: {}'.format(metrics['accuracy']))
+    train_metrics = e.evaluate(input_fn=create_input_fn(data_subdir=train_dir, for_train=False))
+    print('Train set metrics:\n{}'.format(train_metrics))
+    test_metrics = e.evaluate(input_fn=create_input_fn(data_subdir=test_dir, for_train=False))
+    print('Test set metrics:\n{}'.format(test_metrics))
 
 
 def main():
