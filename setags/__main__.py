@@ -1,3 +1,4 @@
+from enum import Enum
 from functools import partial
 from pathlib import Path
 
@@ -9,8 +10,13 @@ from setags.cli import CLI
 from setags.model import model_fn, DEFAULT_PARAMS
 
 
-def run(action: str, model_dir: Path, overrides: dict):
-    print("Using a model from '{}' ({})".format(model_dir, action))
+class Action(Enum):
+    TRAIN = 'train'
+    TEST = 'test'
+
+
+def run(action: Action, model_dir: Path, overrides: dict):
+    print("Using a model from '{}' ({})".format(model_dir, action.value))
 
     params = {}
     params.update(DEFAULT_PARAMS)
@@ -33,25 +39,25 @@ def run(action: str, model_dir: Path, overrides: dict):
     config = tf.estimator.RunConfig().replace(session_config=tf.ConfigProto(gpu_options=gpu_options))
     e = tf.estimator.Estimator(model_fn, model_dir=str(model_dir), params=params, config=config)
 
-    # Create/update the parameters file
-    du.store_params(params, model_dir)
-
     # Train model
-    if action == 'train':
+    if action == Action.TRAIN:
+        # Create/update the parameters file
+        du.store_params(params, model_dir)
         e.train(input_fn=create_input_fn(data_subdir=train_dir, for_train=True, num_epochs=num_epochs))
 
     # Evaluate model
-    train_metrics = e.evaluate(input_fn=create_input_fn(data_subdir=train_dir, for_train=False))
-    print('Train set metrics:\n{}'.format(train_metrics))
-    test_metrics = e.evaluate(input_fn=create_input_fn(data_subdir=test_dir, for_train=False))
-    print('Test set metrics:\n{}'.format(test_metrics))
+    if action in [Action.TRAIN, Action.TEST]:
+        train_metrics = e.evaluate(input_fn=create_input_fn(data_subdir=train_dir, for_train=False))
+        print('Train set metrics:\n{}'.format(train_metrics))
+        test_metrics = e.evaluate(input_fn=create_input_fn(data_subdir=test_dir, for_train=False))
+        print('Test set metrics:\n{}'.format(test_metrics))
 
 
 def main():
     allowed_actions = ['train', 'test']
     allowed_params = sorted(DEFAULT_PARAMS.keys())
     cli = CLI(allowed_actions, allowed_params)
-    run(cli.action, cli.model_dir, cli.overrides)
+    run(Action(cli.action), cli.model_dir, cli.overrides)
 
 
 if __name__ == '__main__':
