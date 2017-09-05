@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 from pathlib import Path
 import numpy as np
 
@@ -119,3 +120,9 @@ def load_list(path: Path) -> list:
             return [value.strip() for value in input_file.readlines()]
     except FileNotFoundError:
         return []
+
+
+def encode_text(text: str, encoding: dict, default=UNKNOWN_WORD_CODE):
+    clean_text = re.sub(r'[^\w-]+', ' ', text).strip()
+    tokens = clean_text.split()
+    return [encoding.get(token, default) for token in tokens] + [0]

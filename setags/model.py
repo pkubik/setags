@@ -1,5 +1,6 @@
 import tensorflow as tf
 
+from setags.data.input import EMBEDDING_SIZE
 from setags.utils import DictWrapper
 
 
@@ -23,6 +24,7 @@ class Params(DictWrapper):
     def __init__(self):
         self.num_epochs = 100
         self.batch_size = 64
+        self.max_word_idx = None
         self.max_tag_idx = None
         self.num_rnn_units = 500
         self.learning_rate = 0.002
@@ -48,8 +50,12 @@ def build_model(mode: tf.estimator.ModeKeys,
                 params: Params) -> tf.estimator.EstimatorSpec:
 
     with tf.device("/cpu:0"):
-        embeddings = tf.get_variable(
-            'embeddings', initializer=features.embeddings_initializer, trainable=False)
+        if features.embeddings_initializer is not None:
+            embeddings = tf.get_variable(
+                'embeddings', initializer=features.embeddings_initializer, trainable=False)
+        else:
+            embeddings = tf.get_variable(
+                'embeddings', shape=[params.max_word_idx, EMBEDDING_SIZE], trainable=False)
 
     embedded_title = tf.nn.embedding_lookup(embeddings, tf.nn.relu(features.title))
     embedded_content = tf.nn.embedding_lookup(embeddings, tf.nn.relu(features.content))
@@ -92,6 +98,7 @@ def build_model(mode: tf.estimator.ModeKeys,
             }
 
     predictions = {
+        'id': features.id,
         'tags': first_tag_prediction,
     }
 

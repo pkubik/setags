@@ -10,9 +10,13 @@ from setags.cli import CLI
 from setags.model import model_fn, DEFAULT_PARAMS
 
 
+PREDICTION_DATA_FILENAME = 'test.csv'
+
+
 class Action(Enum):
     TRAIN = 'train'
     TEST = 'test'
+    PREDICT = 'predict'
 
 
 def run(action: Action, model_dir: Path, overrides: dict):
@@ -30,8 +34,10 @@ def run(action: Action, model_dir: Path, overrides: dict):
     train_dir = data_dir / du.TRAIN_DATA_SUBDIR
     test_dir = data_dir / du.TEST_DATA_SUBDIR
 
+    vocabulary = du.load_vocabulary(data_dir)
     tags = du.load_list(data_dir / du.TAGS_SUBPATH)
     params['max_tag_idx'] = len(tags)
+    params['max_word_idx'] = len(vocabulary)
     create_input_fn = partial(di.create_input_fn, batch_size=batch_size, data_dir=data_dir)
 
     # Create estimator
@@ -52,9 +58,17 @@ def run(action: Action, model_dir: Path, overrides: dict):
         test_metrics = e.evaluate(input_fn=create_input_fn(data_subdir=test_dir, for_train=False))
         print('Test set metrics:\n{}'.format(test_metrics))
 
+    # Make predictions
+    if action == Action.PREDICT:
+        prediction_data_path = data_dir / du.RAW_DATA_SUBDIR / PREDICTION_DATA_FILENAME
+        predictions = e.predict(di.create_input_fn_for_prediction(prediction_data_path, data_dir, batch_size))
+        print('id,tags')
+        for p in predictions:
+            print('{},{}'.format(p['id'], tags[p['tags']]))
+
 
 def main():
-    allowed_actions = ['train', 'test']
+    allowed_actions = [a.value for a in Action]
     allowed_params = sorted(DEFAULT_PARAMS.keys())
     cli = CLI(allowed_actions, allowed_params)
     run(Action(cli.action), cli.model_dir, cli.overrides)

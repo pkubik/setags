@@ -1,4 +1,3 @@
-import re
 from pathlib import Path
 
 import numpy as np
@@ -6,15 +5,9 @@ import pandas as pd
 import tensorflow as tf
 
 import setags.data.utils as utils
-
+from setags.data.utils import encode_text
 
 NUM_EXAMPLES_PER_RECORDS_FILE = 2000
-
-
-def encode_text(text: str, encoding: dict, default=utils.UNKNOWN_WORD_CODE):
-    clean_text = re.sub(r'[^\w-]+', ' ', text).strip()
-    tokens = clean_text.split()
-    return [encoding.get(token, default) for token in tokens] + [0]
 
 
 def prepare_data(filenames: list, data_dir: Path, train_fraction=1.0):

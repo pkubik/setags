@@ -4,7 +4,7 @@ from copy import deepcopy
 class DictWrapper:
     @classmethod
     def from_dict(cls, source):
-        ret = cls.__new__(cls)
+        ret = cls()
         ret.__dict__.update(source)
         return ret
 
