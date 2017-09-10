@@ -7,7 +7,7 @@ from contextlib import suppress
 from pathlib import Path
 import numpy as np
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 MIN_AFTER_DEQUEUE = 1024
@@ -26,14 +26,34 @@ UNKNOWN_WORD_CODE = -1
 EOS_TAG = '</s>'
 
 
+def load_embedding_model(data_dir: Path):
+    embeddings_path = data_dir / EMBEDDINGS_SUBPATH
+    import gensim
+    return gensim.models.wrappers.FastText.load_fasttext_format(str(embeddings_path))
+
+
+def create_embedding_vectors(words: list, embedding_model):
+    def get_vector(word: str):
+        vec = None
+        with suppress(KeyError):
+            vec = embedding_model[word]
+        if vec is None:
+            with suppress(KeyError):
+                vec = embedding_model[word.lower()]
+        if vec is None:
+            with suppress(KeyError):
+                vec = embedding_model['_']
+        return vec.astype(np.float32)
+
+    return [get_vector(w) for w in words]
+
+
 def store_vocab(words, data_dir: Path):
     vocab_path = data_dir / VOCAB_SUBPATH
-    embeddings_path = data_dir / EMBEDDINGS_SUBPATH
     direct_embeddings_path = data_dir / DIRECT_EMBEDDINGS_SUBPATH
 
-    import gensim
-    embedding_model = gensim.models.wrappers.FastText.load_fasttext_format(str(embeddings_path))
     store_list(words, vocab_path)
+    embedding_model = load_embedding_model(data_dir)
 
     def get_vector(word: str):
         vec = None
@@ -79,11 +99,11 @@ def get_data_dir() -> Path:
 
     data_dir = os.environ.get(DATA_DIR_VARIABLE_NAME)
     if data_dir is not None:
-        logger.info("Using '{}' as the data directory.".format(data_dir))
+        log.info("Using '{}' as the data directory.".format(data_dir))
         data_dir = Path(data_dir) / PROBLEM_SUBDIR
     else:
         data_dir = Path(tempfile.gettempdir()) / 'data'
-        logger.warning("Data directory variable '{}' not defined. Using '{}' in its place.".format(
+        log.warning("Data directory variable '{}' not defined. Using '{}' in its place.".format(
             DATA_DIR_VARIABLE_NAME, data_dir))
         data_dir = data_dir / PROBLEM_SUBDIR
 

@@ -1,6 +1,8 @@
+import tempfile
 from enum import Enum
 from functools import partial
 from pathlib import Path
+import logging
 
 import tensorflow as tf
 
@@ -8,6 +10,19 @@ import setags.data.utils as du
 import setags.data.input as di
 from setags.cli import CLI
 from setags.model import model_fn, DEFAULT_PARAMS
+
+
+def setup_logger():
+    root_formatter = logging.Formatter('%(asctime)s : %(name)s : %(levelname)s : %(message)s')
+    root_handler = logging.StreamHandler()
+    root_handler.setLevel(logging.INFO)
+    root_handler.setFormatter(root_formatter)
+    log = logging.getLogger()
+    log.setLevel(logging.INFO)
+    log.addHandler(root_handler)
+
+
+setup_logger()
 
 
 PREDICTION_DATA_FILENAME = 'test.csv'
@@ -38,33 +53,41 @@ def run(action: Action, model_dir: Path, overrides: dict):
     tags = du.load_list(data_dir / du.TAGS_SUBPATH)
     params['max_tag_idx'] = len(tags)
     params['max_word_idx'] = len(vocabulary)
-    create_input_fn = partial(di.create_input_fn, vocab_size=len(vocabulary), batch_size=batch_size, data_dir=data_dir)
+    create_input_fn = partial(di.create_input_fn, batch_size=batch_size)
 
     # Create estimator
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.6)
     config = tf.estimator.RunConfig().replace(session_config=tf.ConfigProto(gpu_options=gpu_options))
     e = tf.estimator.Estimator(model_fn, model_dir=str(model_dir), params=params, config=config)
 
+    hooks = []
+    if action in [Action.TRAIN, Action.TEST]:
+        hooks = [di.create_embedding_feed_hook(data_dir)]
+
     # Train model
     if action == Action.TRAIN:
         # Create/update the parameters file
         du.store_params(params, model_dir)
-        e.train(input_fn=create_input_fn(data_subdir=train_dir, for_train=True, num_epochs=num_epochs))
+        e.train(input_fn=create_input_fn(data_subdir=train_dir, for_train=True, num_epochs=num_epochs), hooks=hooks)
 
     # Evaluate model
     if action in [Action.TRAIN, Action.TEST]:
-        train_metrics = e.evaluate(input_fn=create_input_fn(data_subdir=train_dir, for_train=False))
+        train_metrics = e.evaluate(input_fn=create_input_fn(data_subdir=train_dir, for_train=False), hooks=hooks)
         print('Train set metrics:\n{}'.format(train_metrics))
-        test_metrics = e.evaluate(input_fn=create_input_fn(data_subdir=test_dir, for_train=False))
+        test_metrics = e.evaluate(input_fn=create_input_fn(data_subdir=test_dir, for_train=False), hooks=hooks)
         print('Test set metrics:\n{}'.format(test_metrics))
 
     # Make predictions
     if action == Action.PREDICT:
         prediction_data_path = data_dir / du.RAW_DATA_SUBDIR / PREDICTION_DATA_FILENAME
-        predictions = e.predict(di.create_input_fn_for_prediction(prediction_data_path, data_dir, batch_size))
-        print('id,tags')
+        prediction_input = di.PredictionInput(prediction_data_path, data_dir, vocabulary, batch_size)
+        predictions = e.predict(prediction_input.input_fn, hooks=prediction_input.hooks)
+
+        predictions_file = tempfile.NamedTemporaryFile(mode='w+t', prefix='tags-', delete=False)
+        print("Storing tagging output in '{}'".format(predictions_file.name))
+        predictions_file.write('id,tags\n')
         for p in predictions:
-            print('{},{}'.format(p['id'], tags[p['tags']]))
+            predictions_file.write('{},{}\n'.format(p['id'], tags[p['tags']]))
 
 
 def main():

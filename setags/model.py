@@ -50,12 +50,7 @@ def build_model(mode: tf.estimator.ModeKeys,
                 params: Params) -> tf.estimator.EstimatorSpec:
 
     with tf.device("/cpu:0"):
-        if features.embeddings_initializer is not None:
-            embeddings = tf.get_variable(
-                'embeddings', initializer=features.embeddings_initializer, trainable=False)
-        else:
-            embeddings = tf.get_variable(
-                'embeddings', shape=[params.max_word_idx, EMBEDDING_SIZE], trainable=False)
+        embeddings = tf.placeholder(tf.float32, [None, EMBEDDING_SIZE], name='embeddings')
 
     embedded_title = tf.nn.embedding_lookup(embeddings, tf.nn.relu(features.title))
     embedded_content = tf.nn.embedding_lookup(embeddings, tf.nn.relu(features.content))
