@@ -34,11 +34,11 @@ def run(action: Action, model_dir: Path, overrides: dict):
     train_dir = data_dir / du.TRAIN_DATA_SUBDIR
     test_dir = data_dir / du.TEST_DATA_SUBDIR
 
-    vocabulary = du.load_vocabulary(data_dir)
+    vocabulary = du.load_list(data_dir/ du.VOCAB_SUBPATH)
     tags = du.load_list(data_dir / du.TAGS_SUBPATH)
     params['max_tag_idx'] = len(tags)
     params['max_word_idx'] = len(vocabulary)
-    create_input_fn = partial(di.create_input_fn, batch_size=batch_size, data_dir=data_dir)
+    create_input_fn = partial(di.create_input_fn, vocab_size=len(vocabulary), batch_size=batch_size, data_dir=data_dir)
 
     # Create estimator
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.6)

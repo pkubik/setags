@@ -12,10 +12,8 @@ FILENAME_INPUT_PRODUCER_SEED = 1
 logger = logging.getLogger(__name__)
 
 
-def create_input_fn(data_subdir: Path, data_dir: Path, batch_size: int, for_train=True, num_epochs=1):
+def create_input_fn(data_subdir: Path, data_dir: Path, vocab_size: int, batch_size: int, for_train=True, num_epochs=1):
     filenames = [str(filename) for filename in data_subdir.iterdir()]
-
-    vocabulary = utils.load_vocabulary(data_dir)
 
     def embeddings_init_fn():
         logger.warning("Initializing words embeddings")
@@ -54,7 +52,7 @@ def create_input_fn(data_subdir: Path, data_dir: Path, batch_size: int, for_trai
         labels = {key: example_fields[key] for key in ['tags', 'tags_length']}
 
         [embeddings_init] = tf.py_func(embeddings_init_fn, [], [tf.float32], stateful=True)
-        embeddings_init.set_shape([len(vocabulary), EMBEDDING_SIZE])
+        embeddings_init.set_shape([vocab_size, EMBEDDING_SIZE])
         features['embeddings_initializer'] = embeddings_init
 
         return features, labels

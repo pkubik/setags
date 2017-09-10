@@ -2,6 +2,8 @@ import json
 import logging
 import os
 import re
+from collections import defaultdict
+from contextlib import suppress
 from pathlib import Path
 import numpy as np
 
@@ -16,44 +18,60 @@ PROBLEM_SUBDIR = 'stackexchange'
 TRAIN_DATA_SUBDIR = 'train'
 TEST_DATA_SUBDIR = 'test'
 RAW_DATA_SUBDIR = 'raw'
-EMBEDDINGS_SUBPATH = 'embeddings.bin'
-FAST_EMBEDDINGS_SUBPATH = 'embeddings.npy'
+EMBEDDINGS_SUBPATH = 'wiki.simple'
+DIRECT_EMBEDDINGS_SUBPATH = 'wiki.simple.npy'
 VOCAB_SUBPATH = 'vocab.txt'
 TAGS_SUBPATH = 'tags.txt'
 UNKNOWN_WORD_CODE = -1
+EOS_TAG = '</s>'
 
 
-def load_vocabulary(data_dir: Path) -> list:
-    """
-    Loads the vocabulary. If it does not exist, then it is created from the embeddings.
-    A word with index `0` is the padding/EOS symbol `</s>`.
-
-    :param data_dir: path to the problem's data directory
-    :return: list of words
-    """
+def store_vocab(words, data_dir: Path):
     vocab_path = data_dir / VOCAB_SUBPATH
-    vocab = load_list(vocab_path)
-    if len(vocab) > 0:
-        return vocab
-
-    logger.warning("Vocabulary file not found. Loading embeddings to generate the vocabulary file.")
-    import gensim
     embeddings_path = data_dir / EMBEDDINGS_SUBPATH
-    embeddings = gensim.models.KeyedVectors.load_word2vec_format(str(embeddings_path), binary=True)
-    vocab = [w for w in embeddings.index2word if '_' not in w and '#' not in w]
+    direct_embeddings_path = data_dir / DIRECT_EMBEDDINGS_SUBPATH
 
-    logger.info("Storing filtered embeddings.")
-    filtered_vectors = [embeddings[w].astype(np.float32) for w in vocab]
-    np.save(str(data_dir / FAST_EMBEDDINGS_SUBPATH), filtered_vectors)
+    import gensim
+    embedding_model = gensim.models.wrappers.FastText.load_fasttext_format(str(embeddings_path))
+    store_list(words, vocab_path)
 
-    logger.info("Storing a vocabulary of size {}.".format(len(vocab)))
-    store_list(vocab, vocab_path)
+    def get_vector(word: str):
+        vec = None
+        with suppress(KeyError):
+            vec = embedding_model[word]
+        if vec is None:
+            with suppress(KeyError):
+                vec = embedding_model[word.lower()]
+        if vec is None:
+            with suppress(KeyError):
+                vec = embedding_model['_']
+        return vec.astype(np.float32)
 
-    return vocab
+    vectors = [get_vector(w) for w in words]
+    np.save(direct_embeddings_path, vectors)
+
+
+def encoding_as_list(encoding: dict):
+    keys = [None for _ in encoding]
+    for k, i in encoding.items():
+        keys[i] = k
+
+    return keys
+
+
+class WordEncoder(defaultdict):
+    def __init__(self, data_dir: Path):
+        super().__init__(lambda: len(self))
+        self.data_dir = data_dir
+        self[EOS_TAG] = 0
+
+    def store_direct_embeddings(self):
+        words = encoding_as_list(self)
+        store_vocab(words, self.data_dir)
 
 
 def load_embeddings_matrix(data_dir: Path) -> np.ndarray:
-    return np.load(str(data_dir / FAST_EMBEDDINGS_SUBPATH))
+    return np.load(str(data_dir / DIRECT_EMBEDDINGS_SUBPATH))
 
 
 def get_data_dir() -> Path:
@@ -125,4 +143,8 @@ def load_list(path: Path) -> list:
 def encode_text(text: str, encoding: dict, default=UNKNOWN_WORD_CODE):
     clean_text = re.sub(r'[^\w-]+', ' ', text).strip()
     tokens = clean_text.split()
-    return [encoding.get(token, default) for token in tokens] + [0]
+    tokens = ['#' if t.isnumeric() else t for t in tokens]
+    if isinstance(encoding, defaultdict):
+        return [encoding[token] for token in tokens] + [0]
+    else:
+        return [encoding.get(token, default) for token in tokens] + [0]

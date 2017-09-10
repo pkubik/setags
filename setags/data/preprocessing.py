@@ -18,8 +18,7 @@ def prepare_data(filenames: list, data_dir: Path, train_fraction=1.0):
     train_dir.mkdir(parents=True, exist_ok=True)
     test_dir.mkdir(parents=True, exist_ok=True)
 
-    vocab = utils.load_vocabulary(data_dir)
-    word_encoding = {value: i for i, value in enumerate(vocab)}
+    word_encoder = utils.WordEncoder(data_dir)
     tags = utils.load_list(data_dir / utils.TAGS_SUBPATH)
     tag_encoding = {value: i for i, value in enumerate(tags)}
 
@@ -35,10 +34,12 @@ def prepare_data(filenames: list, data_dir: Path, train_fraction=1.0):
             np.random.seed(0)
             train_df = df.sample(frac=train_fraction)
 
-        store_tfrecords_from_df(name, word_encoding, tag_encoding, train_df, train_dir)
+        store_tfrecords_from_df(name, word_encoder, tag_encoding, train_df, train_dir)
         if train_fraction < 1.0:
             test_df = df.drop(train_df.index)
-            store_tfrecords_from_df(name, word_encoding, tag_encoding, test_df, test_dir)
+            store_tfrecords_from_df(name, word_encoder, tag_encoding, test_df, test_dir)
+
+    word_encoder.store_direct_embeddings()
 
 
 def encoded_string_features_dict(name, value, word_encoding):

@@ -10,11 +10,13 @@ environment variable which maintains following structure:
   - `stackexchange`
     - `train` (preprocessed training data in *TFRecords* format)
     - `test` (preprocessed test data in TFRecords format)
-    - `raw*` ([raw CSV files from Kaggle](https://www.kaggle.com/c/transfer-learning-on-stack-exchange-tags/data))
-    - `embeddings.bin*` ([Google News word2vec embeddings](https://github.com/mmihaltz/word2vec-GoogleNews-vectors))
-    - `vocab.txt` (created during preprocessing step using `embeddings.bin`)
+    - **`raw`** ([raw CSV files from Kaggle](https://www.kaggle.com/c/transfer-learning-on-stack-exchange-tags/data))
+    - **`wiki.simple.bin`** and **`wiki.simple.vec`**
+    ([fastText pretrained embeddings](https://github.com/facebookresearch/fastText/blob/master/pretrained-vectors.md))
+    - `vocab.txt` (created during preprocessing step using the corpus)
+    - `wiki.simple.npy` (preprocessed embeddings for faster training)
     
-`*` - Entities marked with the star must be available before the preprocessing step.
+**Entities written in bold must be available before the preprocessing step.**
     
 ## Usage
 
