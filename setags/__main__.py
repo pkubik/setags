@@ -62,7 +62,8 @@ def run(action: Action, model_dir: Path, overrides: dict):
 
     hooks = []
     if action in [Action.TRAIN, Action.TEST]:
-        hooks = [di.create_embedding_feed_hook(data_dir)]
+        embedding_matrix = du.load_embeddings_matrix(data_dir)
+        hooks = [di.create_embedding_feed_hook(embedding_matrix)]
 
     # Train model
     if action == Action.TRAIN:
