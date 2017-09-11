@@ -95,11 +95,10 @@ class PredictionInput:
 
         words = utils.encoding_as_list(self.word_encoding)[self.original_vocab_size:]
         if len(words) > 0:
-            vocab_ext_file = tempfile.NamedTemporaryFile(mode='w+t', prefix='vocab-', delete=False)
-            log.info("Storing new words in '{}'".format(vocab_ext_file.name))
-            for word in words:
-                vocab_ext_file.write(str(word) + '\n')
-            vocab_ext_file.close()
+            with tempfile.NamedTemporaryFile(mode='w+t', prefix='vocab-', delete=False) as vocab_ext_file:
+                self.vocab_ext_path = vocab_ext_file.name
+                for word in words:
+                    vocab_ext_file.write(str(word) + '\n')
 
             embedding_model = utils.load_embedding_model(self.data_dir)
             new_vectors = utils.create_embedding_vectors(words, embedding_model)

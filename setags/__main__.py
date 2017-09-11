@@ -2,28 +2,15 @@ import tempfile
 from enum import Enum
 from functools import partial
 from pathlib import Path
-import logging
 
 import tensorflow as tf
 
-import setags.data.utils as du
 import setags.data.input as di
+import setags.data.utils as du
 from setags.cli import CLI
+from setags.data.utils import cprint
+from setags.logging import setup_logger
 from setags.model import model_fn, DEFAULT_PARAMS
-
-
-def setup_logger():
-    root_formatter = logging.Formatter('%(asctime)s : %(name)s : %(levelname)s : %(message)s')
-    root_handler = logging.StreamHandler()
-    root_handler.setLevel(logging.INFO)
-    root_handler.setFormatter(root_formatter)
-    log = logging.getLogger()
-    log.setLevel(logging.INFO)
-    log.addHandler(root_handler)
-
-
-setup_logger()
-
 
 PREDICTION_DATA_FILENAME = 'test.csv'
 
@@ -35,7 +22,7 @@ class Action(Enum):
 
 
 def run(action: Action, model_dir: Path, overrides: dict):
-    print("Using a model from '{}' ({})".format(model_dir, action.value))
+    cprint("Using a model from '{}' ({})".format(model_dir, action.value))
 
     params = {}
     params.update(DEFAULT_PARAMS)
@@ -74,24 +61,26 @@ def run(action: Action, model_dir: Path, overrides: dict):
     # Evaluate model
     if action in [Action.TRAIN, Action.TEST]:
         train_metrics = e.evaluate(input_fn=create_input_fn(data_subdir=train_dir, for_train=False), hooks=hooks)
-        print('Train set metrics:\n{}'.format(train_metrics))
+        cprint('Train set metrics:\n{}'.format(train_metrics))
         test_metrics = e.evaluate(input_fn=create_input_fn(data_subdir=test_dir, for_train=False), hooks=hooks)
-        print('Test set metrics:\n{}'.format(test_metrics))
+        cprint('Test set metrics:\n{}'.format(test_metrics))
 
     # Make predictions
     if action == Action.PREDICT:
         prediction_data_path = data_dir / du.RAW_DATA_SUBDIR / PREDICTION_DATA_FILENAME
         prediction_input = di.PredictionInput(prediction_data_path, data_dir, vocabulary, batch_size)
         predictions = e.predict(prediction_input.input_fn, hooks=prediction_input.hooks)
+        cprint("Storing new words in '{}'".format(prediction_input.vocab_ext_path))
 
-        predictions_file = tempfile.NamedTemporaryFile(mode='w+t', prefix='tags-', delete=False)
-        print("Storing tagging output in '{}'".format(predictions_file.name))
-        predictions_file.write('id,tags\n')
-        for p in predictions:
-            predictions_file.write('{},{}\n'.format(p['id'], tags[p['tags']]))
+        with tempfile.NamedTemporaryFile(mode='w+t', prefix='tags-', delete=False) as predictions_file:
+            cprint("Storing tagging output in '{}'".format(predictions_file.name))
+            predictions_file.write('id,tags\n')
+            for p in predictions:
+                predictions_file.write('{},{}\n'.format(p['id'], tags[p['tags']]))
 
 
 def main():
+    setup_logger()
     allowed_actions = [a.value for a in Action]
     allowed_params = sorted(DEFAULT_PARAMS.keys())
     cli = CLI(allowed_actions, allowed_params)

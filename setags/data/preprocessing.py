@@ -1,4 +1,5 @@
 from pathlib import Path
+import logging
 
 import numpy as np
 import pandas as pd
@@ -6,6 +7,8 @@ import tensorflow as tf
 
 import setags.data.utils as utils
 from setags.data.utils import encode_text
+
+log = logging.getLogger(__name__)
 
 NUM_EXAMPLES_PER_RECORDS_FILE = 2000
 
@@ -23,6 +26,7 @@ def prepare_data(filenames: list, data_dir: Path, train_fraction=1.0):
     tag_encoding = {value: i for i, value in enumerate(tags)}
 
     for filename in filenames:
+        log.info("Preprocessing file '{}'".format(filename))
         name, _ = filename.split('.')
         with (input_dir / filename).open() as f:
             df = pd.read_csv(f)
@@ -39,6 +43,7 @@ def prepare_data(filenames: list, data_dir: Path, train_fraction=1.0):
             test_df = df.drop(train_df.index)
             store_tfrecords_from_df(name, word_encoder, tag_encoding, test_df, test_dir)
 
+    log.info("Storing direct embeddings")
     word_encoder.store_direct_embeddings()
 
 
