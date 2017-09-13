@@ -3,7 +3,7 @@ from pathlib import Path
 
 import setags.data.preprocessing as preprocessing
 import setags.data.utils as du
-from setags.data.utils import cprint
+from setags.utils import cprint
 from setags.logging import setup_logger
 
 DATA_FILENAMES = ['biology.csv', 'cooking.csv', 'diy.csv', 'robotics.csv', 'travel.csv']

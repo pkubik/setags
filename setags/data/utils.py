@@ -5,6 +5,7 @@ import re
 from collections import defaultdict
 from contextlib import suppress
 from pathlib import Path
+
 import numpy as np
 
 log = logging.getLogger(__name__)
@@ -168,7 +169,3 @@ def encode_text(text: str, encoding: dict, default=UNKNOWN_WORD_CODE):
         return [encoding[token] for token in tokens] + [0]
     else:
         return [encoding.get(token, default) for token in tokens] + [0]
-
-
-def cprint(*args, **kwargs):
-    print('-=>', *args, **kwargs)

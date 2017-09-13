@@ -8,7 +8,7 @@ import tensorflow as tf
 import setags.data.input as di
 import setags.data.utils as du
 from setags.cli import CLI
-from setags.data.utils import cprint
+from setags.utils import cprint
 from setags.logging import setup_logger
 from setags.model import model_fn, DEFAULT_PARAMS
 
