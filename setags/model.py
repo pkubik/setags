@@ -11,7 +11,6 @@ class Features(DictWrapper):
         self.title_length = None
         self.content = None
         self.content_length = None
-        self.embeddings_initializer = None
 
 
 class Labels(DictWrapper):

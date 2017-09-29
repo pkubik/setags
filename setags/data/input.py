@@ -91,7 +91,9 @@ class PredictionInput:
         data = {
             'id': np.array(ids),
             'title': title_array,
-            'content': content_array
+            'title_length': np.array([len(title) for title in titles]),
+            'content': content_array,
+            'content_length': np.array([len(content) for content in contents]),
         }
         self.input_fn = tf.estimator.inputs.numpy_input_fn(data, batch_size=batch_size, shuffle=False)
 
