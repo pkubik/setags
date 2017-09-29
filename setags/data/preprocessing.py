@@ -22,8 +22,6 @@ def prepare_data(filenames: list, data_dir: Path, train_fraction=1.0):
     test_dir.mkdir(parents=True, exist_ok=True)
 
     word_encoder = utils.WordEncoder(data_dir)
-    tags = utils.load_list(data_dir / utils.TAGS_SUBPATH)
-    tag_encoding = {value: i for i, value in enumerate(tags)}
 
     for filename in filenames:
         log.info("Preprocessing file '{}'".format(filename))
@@ -38,30 +36,42 @@ def prepare_data(filenames: list, data_dir: Path, train_fraction=1.0):
             np.random.seed(0)
             train_df = df.sample(frac=train_fraction)
 
-        store_tfrecords_from_df(name, word_encoder, tag_encoding, train_df, train_dir)
+        store_tfrecords_from_df(name, word_encoder, train_df, train_dir)
         if train_fraction < 1.0:
             test_df = df.drop(train_df.index)
-            store_tfrecords_from_df(name, word_encoder, tag_encoding, test_df, test_dir)
+            store_tfrecords_from_df(name, word_encoder, test_df, test_dir)
 
     log.info("Storing direct embeddings")
     word_encoder.store_direct_embeddings()
 
 
-def encoded_string_features_dict(name, value, word_encoding):
+def encoded_string_features_dict(name: str, value: str, word_encoding: dict, token_tag_mapping: dict) -> dict:
     tokens = encode_text(value, word_encoding)
+    bio_tags = [token_tag_mapping.get(token, utils.BIOTag.OUTSIDE).value for token in tokens]
     return {
         name: tf.train.Feature(int64_list=tf.train.Int64List(value=tokens)),
+        name + '_bio': tf.train.Feature(int64_list=tf.train.Int64List(value=bio_tags)),
         name + '_length': tf.train.Feature(int64_list=tf.train.Int64List(value=[len(tokens)]))
     }
 
 
-def string_feature(value):
+def string_feature(value: str) -> tf.train.Feature:
     return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value.encode()]))
+
+
+def parse_tags(value: str, word_encoding) -> dict:
+    tags = value.split()
+    token_mapping = {}
+    for tag in tags:
+        [tag_head, *tag_tail] = encode_text(tag, word_encoding)[:-1]
+        token_mapping[tag_head] = utils.BIOTag.BEGINNING
+        for tail_word in tag_tail:
+            token_mapping[tail_word] = utils.BIOTag.INSIDE
+    return token_mapping
 
 
 def store_tfrecords_from_df(name: str,
                             word_encoding: dict,
-                            tag_encoding: dict,
                             df: pd.DataFrame,
                             output_dir: Path):
     """
@@ -69,7 +79,6 @@ def store_tfrecords_from_df(name: str,
 
     :param name: base name for the output filename (without extension)
     :param word_encoding: words encoding to be used
-    :param tag_encoding: tags encoding to be used
     :param df: data frame to store
     :param output_dir: directory used to store the output files
     """
@@ -81,8 +90,8 @@ def store_tfrecords_from_df(name: str,
         features = {
             'id': string_feature(row['id']),
         }
-        features.update(encoded_string_features_dict('title', row['title'], word_encoding))
-        features.update(encoded_string_features_dict('content', row['content'], word_encoding))
-        features.update(encoded_string_features_dict('tags', row['tags'], tag_encoding))
+        token_tag_mapping = parse_tags(row['tags'], word_encoding)
+        features.update(encoded_string_features_dict('title', row['title'], word_encoding, token_tag_mapping))
+        features.update(encoded_string_features_dict('content', row['content'], word_encoding, token_tag_mapping))
         example = tf.train.Example(features=tf.train.Features(feature=features))
         record_writer.write(example.SerializeToString())

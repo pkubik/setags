@@ -33,7 +33,7 @@ def run(action: Action, model_dir: Path, overrides: dict):
     # Evaluate model
     if action in [Action.TRAIN, Action.TEST]:
         train_metrics = e.evaluate(train_dir)
-        cprint('Train set metrics:\n{}'.format(train_metrics))
+        cprint('Train set metrics:\n{}'.format(train_metrics), 'train')
         test_metrics = e.evaluate(test_dir)
         cprint('Test set metrics:\n{}'.format(test_metrics))
 
@@ -47,7 +47,7 @@ def run(action: Action, model_dir: Path, overrides: dict):
             cprint("Storing tagging output in '{}'".format(predictions_file.name))
             predictions_file.write('id,tags\n')
             for p in predictions:
-                predictions_file.write('{},{}\n'.format(p['id'], e.tags[p['tags']]))
+                predictions_file.write('{},{}\n'.format(p['id'], ' '.join(p['tags'])))
 
 
 def main():

@@ -38,16 +38,16 @@ def create_input_fn(data_subdir: Path, batch_size: int, for_train=True, num_epoc
             features={
                 'id': tf.FixedLenFeature([], dtype=tf.string),
                 'title': tf.FixedLenSequenceFeature([], dtype=tf.int64, allow_missing=True),
+                'title_bio': tf.FixedLenSequenceFeature([], dtype=tf.int64, allow_missing=True),
                 'title_length': tf.FixedLenFeature([], dtype=tf.int64),
                 'content': tf.FixedLenSequenceFeature([], dtype=tf.int64, allow_missing=True),
-                'content_length': tf.FixedLenFeature([], dtype=tf.int64),
-                'tags': tf.FixedLenSequenceFeature([], dtype=tf.int64, allow_missing=True),
-                'tags_length': tf.FixedLenFeature([], dtype=tf.int64)
+                'content_bio': tf.FixedLenSequenceFeature([], dtype=tf.int64, allow_missing=True),
+                'content_length': tf.FixedLenFeature([], dtype=tf.int64)
             })
 
         features = {key: example_fields[key]
                     for key in ['id', 'title', 'title_length', 'content', 'content_length']}
-        labels = {key: example_fields[key] for key in ['tags', 'tags_length']}
+        labels = {key: example_fields[key] for key in ['title_bio', 'content_bio']}
 
         return features, labels
 

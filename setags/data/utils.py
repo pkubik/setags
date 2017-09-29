@@ -4,6 +4,7 @@ import os
 import re
 from collections import defaultdict
 from contextlib import suppress
+from enum import Enum
 from pathlib import Path
 
 import numpy as np
@@ -25,6 +26,7 @@ VOCAB_SUBPATH = 'vocab.txt'
 TAGS_SUBPATH = 'tags.txt'
 UNKNOWN_WORD_CODE = -1
 EOS_TAG = '</s>'
+SEQUENCE_LENGTH_LIMIT = 1280
 
 
 def load_embedding_model(data_dir: Path):
@@ -166,6 +168,12 @@ def encode_text(text: str, encoding: dict, default=UNKNOWN_WORD_CODE):
     tokens = clean_text.split()
     tokens = ['#' if t.isnumeric() else t for t in tokens]
     if isinstance(encoding, defaultdict):
-        return [encoding[token] for token in tokens] + [0]
+        return [encoding[token] for token in tokens][:SEQUENCE_LENGTH_LIMIT-1] + [0]
     else:
-        return [encoding.get(token, default) for token in tokens] + [0]
+        return [encoding.get(token, default) for token in tokens][:SEQUENCE_LENGTH_LIMIT-1] + [0]
+
+
+class BIOTag(Enum):
+    OUTSIDE = 0
+    BEGINNING = 1
+    INSIDE = 2
