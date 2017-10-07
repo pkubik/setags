@@ -86,7 +86,7 @@ class PredictionInput:
         max_title_length = 0
         max_content_length = 0
         for _, row in df.iterrows():
-            ids.append(row.id)
+            ids.append(str(row.id))
             encoded_title = utils.encode_text(row.title, self.word_encoding)
             titles.append(encoded_title)
             encoded_content = utils.encode_text(row.content, self.word_encoding)

@@ -23,6 +23,7 @@ def prepare_data(filenames: list, data_dir: Path, train_fraction=1.0):
     test_dir.mkdir(parents=True, exist_ok=True)
 
     word_encoder = utils.WordEncoder(data_dir)
+    test_dfs = []
 
     for filename in filenames:
         log.info("Preprocessing file '{}'".format(filename))
@@ -41,7 +42,12 @@ def prepare_data(filenames: list, data_dir: Path, train_fraction=1.0):
         if train_fraction < 1.0:
             test_df = df.drop(train_df.index)
             store_tfrecords_from_df(name, word_encoder, test_df, test_dir)
+            test_dfs.append(test_df)
 
+    log.info("Storing valid tags for the test set")
+    whole_test_df = pd.concat(test_dfs)
+    assert(isinstance(whole_test_df, pd.DataFrame))
+    whole_test_df.to_csv(data_dir / utils.TEST_TAGS_CSV_SUBPATH, columns=['id', 'tags'], index=False)
     log.info("Storing direct embeddings")
     word_encoder.store_direct_embeddings()
 

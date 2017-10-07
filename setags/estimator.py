@@ -73,6 +73,23 @@ class Estimator:
             name=tag)
         return metrics
 
+    def predict_on_test(self, data_path: Path) -> Iterable:
+        """
+        Creates predictions file for the test set
+
+        :param data_path: path to a directory containing preprocessed input files
+        :return: calculated metrics dict
+        """
+        raw_predictions = self._estimator.predict(
+            input_fn=di.create_input_fn(
+                data_subdir=data_path,
+                for_train=False,
+                num_epochs=1,
+                batch_size=self.batch_size),
+            hooks=self.create_train_test_hooks())
+
+        return extract_tags_from_raw_predictions(self.vocabulary, raw_predictions)
+
     def predict(self, data_path: Path) -> (Iterable, str):
         """
         Creates predictions file
@@ -86,13 +103,7 @@ class Estimator:
         raw_predictions = self._estimator.predict(prediction_input.input_fn, hooks=prediction_input.hooks)
 
         encoding = du.encoding_as_list(prediction_input.word_encoding)
-
-        predictions = (
-            {
-                'id': prediction['id'],
-                'tags': extract_tags_from_prediction_dict(prediction, encoding)
-            }
-            for prediction in raw_predictions)
+        predictions = extract_tags_from_raw_predictions(encoding, raw_predictions)
 
         return predictions, prediction_input.vocab_ext_path
 
@@ -109,6 +120,16 @@ def extract_tags_from_prediction_dict(prediction: dict, encoding: list):
         prediction['content_length'],
         encoding)
     return title_tags | content_tags
+
+
+def extract_tags_from_raw_predictions(encoding, raw_predictions):
+    predictions = (
+        {
+            'id': prediction['id'].decode(),
+            'tags': extract_tags_from_prediction_dict(prediction, encoding)
+        }
+        for prediction in raw_predictions)
+    return predictions
 
 
 def extract_tags(inputs: np.ndarray, annotations: np.ndarray, length: int, encoding: list) -> set:
