@@ -32,8 +32,8 @@ def run(action: Action, model_dir: Path, overrides: dict):
 
     # Evaluate model
     if action in [Action.TRAIN, Action.TEST]:
-        train_metrics = e.evaluate(train_dir)
-        cprint('Train set metrics:\n{}'.format(train_metrics), 'train')
+        train_metrics = e.evaluate(train_dir, 'train')
+        cprint('Train set metrics:\n{}'.format(train_metrics))
         test_metrics = e.evaluate(test_dir)
         cprint('Test set metrics:\n{}'.format(test_metrics))
 

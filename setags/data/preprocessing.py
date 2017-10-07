@@ -10,6 +10,7 @@ from setags.data.utils import encode_text
 
 log = logging.getLogger(__name__)
 
+INDEX_FILENAME = 'index.csv'
 NUM_EXAMPLES_PER_RECORDS_FILE = 2000
 
 
@@ -82,6 +83,7 @@ def store_tfrecords_from_df(name: str,
     :param df: data frame to store
     :param output_dir: directory used to store the output files
     """
+    df.to_csv(output_dir / INDEX_FILENAME, columns=['id'], header=False, index=False, mode='a')
     record_writer = None
     for i, (_, row) in enumerate(df.iterrows()):
         if i % NUM_EXAMPLES_PER_RECORDS_FILE == 0:

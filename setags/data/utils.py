@@ -17,13 +17,13 @@ PARAMS_FILENAME = 'params.json'
 MODELS_DIR_VARIABLE_NAME = 'TENSORFLOW_MODELS_DIR'
 DATA_DIR_VARIABLE_NAME = 'RESEARCH_DATA_DIR'
 PROBLEM_SUBDIR = 'stackexchange'
-TRAIN_DATA_SUBDIR = 'train'
-TEST_DATA_SUBDIR = 'test'
+PREPROCESSED_DATA_SUBDIR = Path('preproc')
+TRAIN_DATA_SUBDIR = PREPROCESSED_DATA_SUBDIR / 'train'
+TEST_DATA_SUBDIR = PREPROCESSED_DATA_SUBDIR / 'test'
 RAW_DATA_SUBDIR = 'raw'
 EMBEDDINGS_SUBPATH = 'wiki.simple'
-DIRECT_EMBEDDINGS_SUBPATH = 'wiki.simple.npy'
-VOCAB_SUBPATH = 'vocab.txt'
-TAGS_SUBPATH = 'tags.txt'
+DIRECT_EMBEDDINGS_SUBPATH = PREPROCESSED_DATA_SUBDIR / 'wiki.simple.npy'
+VOCAB_SUBPATH = PREPROCESSED_DATA_SUBDIR / 'vocab.txt'
 UNKNOWN_WORD_CODE = -1
 EOS_TAG = '</s>'
 SEQUENCE_LENGTH_LIMIT = 1280
@@ -93,8 +93,8 @@ class WordEncoder(defaultdict):
         store_vocab(words, self.data_dir)
 
 
-def load_embeddings_matrix(data_dir: Path) -> np.ndarray:
-    return np.load(str(data_dir / DIRECT_EMBEDDINGS_SUBPATH))
+def load_embeddings_matrix(source_dir: Path) -> np.ndarray:
+    return np.load(str(source_dir / DIRECT_EMBEDDINGS_SUBPATH))
 
 
 def get_data_dir() -> Path:

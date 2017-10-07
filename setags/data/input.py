@@ -10,15 +10,16 @@ import logging
 
 EMBEDDING_SIZE = 300
 FILENAME_INPUT_PRODUCER_SEED = 1
+RECORDS_FILE_EXTENSION = '.tfrecords'
 
 log = logging.getLogger(__name__)
 
 
 def create_input_fn(data_subdir: Path, batch_size: int, for_train=True, num_epochs=1):
-    filenames = [str(filename) for filename in data_subdir.iterdir()]
+    input_files = all_records_files(data_subdir)
 
     def input_fn():
-        filename_queue = tf.train.string_input_producer(filenames, num_epochs=num_epochs,
+        filename_queue = tf.train.string_input_producer(input_files, num_epochs=num_epochs,
                                                         seed=FILENAME_INPUT_PRODUCER_SEED)
 
         reader = tf.TFRecordReader()
@@ -33,25 +34,31 @@ def create_input_fn(data_subdir: Path, batch_size: int, for_train=True, num_epoc
             examples_batch = tf.train.batch(
                 [serialized_example], batch_size=batch_size, num_threads=3, capacity=5 * batch_size)
 
-        example_fields = tf.parse_example(
-            examples_batch,
-            features={
-                'id': tf.FixedLenFeature([], dtype=tf.string),
-                'title': tf.FixedLenSequenceFeature([], dtype=tf.int64, allow_missing=True),
-                'title_bio': tf.FixedLenSequenceFeature([], dtype=tf.int64, allow_missing=True),
-                'title_length': tf.FixedLenFeature([], dtype=tf.int64),
-                'content': tf.FixedLenSequenceFeature([], dtype=tf.int64, allow_missing=True),
-                'content_bio': tf.FixedLenSequenceFeature([], dtype=tf.int64, allow_missing=True),
-                'content_length': tf.FixedLenFeature([], dtype=tf.int64)
-            })
-
-        features = {key: example_fields[key]
-                    for key in ['id', 'title', 'title_length', 'content', 'content_length']}
-        labels = {key: example_fields[key] for key in ['title_bio', 'content_bio']}
-
-        return features, labels
+        return parse_examples_batch(examples_batch)
 
     return input_fn
+
+
+def all_records_files(data_subdir):
+    return [str(file_path) for file_path in data_subdir.iterdir() if file_path.suffix == RECORDS_FILE_EXTENSION]
+
+
+def parse_examples_batch(examples_batch):
+    example_fields = tf.parse_example(
+        examples_batch,
+        features={
+            'id': tf.FixedLenFeature([], dtype=tf.string),
+            'title': tf.FixedLenSequenceFeature([], dtype=tf.int64, allow_missing=True),
+            'title_bio': tf.FixedLenSequenceFeature([], dtype=tf.int64, allow_missing=True),
+            'title_length': tf.FixedLenFeature([], dtype=tf.int64),
+            'content': tf.FixedLenSequenceFeature([], dtype=tf.int64, allow_missing=True),
+            'content_bio': tf.FixedLenSequenceFeature([], dtype=tf.int64, allow_missing=True),
+            'content_length': tf.FixedLenFeature([], dtype=tf.int64)
+        })
+    features = {key: example_fields[key]
+                for key in ['id', 'title', 'title_length', 'content', 'content_length']}
+    labels = {key: example_fields[key] for key in ['title_bio', 'content_bio']}
+    return features, labels
 
 
 class PredictionInput:
