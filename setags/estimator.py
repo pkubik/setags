@@ -9,6 +9,9 @@ import setags.data.utils as du
 from setags.model import model_fn, DEFAULT_PARAMS
 
 
+EPOCHS_BEFORE_EVAL = 5
+
+
 class Estimator:
     def __init__(self, model_dir: Path, data_dir: Path, param_overrides: dict = None):
         if param_overrides is None:
@@ -39,21 +42,42 @@ class Estimator:
     def create_train_test_hooks(self):
         return [di.create_embedding_feed_hook(self.embedding_matrix)]
 
-    def train(self, data_path: Path):
+    def train(self, data_path: Path, test_data_path: Path = None):
         """
         Trains the model
 
         :param data_path: path to a directory containing preprocessed input files
+        :param test_data_path: optional path to a directory containing preprocessed test files for periodic evaluation
         """
         # Create/update the parameters file
         du.store_params(self.params, self.model_dir)
-        self._estimator.train(
-            input_fn=di.create_input_fn(
-                data_subdir=data_path,
-                for_train=True,
-                num_epochs=self.num_epochs,
-                batch_size=self.batch_size),
-            hooks=self.create_train_test_hooks())
+
+        if test_data_path is None:
+            self._estimator.train(
+                input_fn=di.create_input_fn(
+                    data_subdir=data_path,
+                    for_train=True,
+                    num_epochs=self.num_epochs,
+                    batch_size=self.batch_size),
+                hooks=self.create_train_test_hooks())
+        else:
+            epochs_left = self.num_epochs
+            while epochs_left > 0:
+                self._estimator.train(
+                    input_fn=di.create_input_fn(
+                        data_subdir=data_path,
+                        for_train=True,
+                        num_epochs=min(EPOCHS_BEFORE_EVAL, epochs_left),
+                        batch_size=self.batch_size),
+                    hooks=self.create_train_test_hooks())
+                self._estimator.evaluate(
+                    input_fn=di.create_input_fn(
+                        data_subdir=test_data_path,
+                        for_train=False,
+                        num_epochs=1,
+                        batch_size=self.batch_size),
+                    hooks=self.create_train_test_hooks())
+                epochs_left -= EPOCHS_BEFORE_EVAL
 
     def evaluate(self, data_path: Path, tag=None) -> dict:
         """
@@ -141,9 +165,9 @@ def extract_tags(inputs: np.ndarray, annotations: np.ndarray, length: int, encod
             current_tag = []
         elif a == 1:
             tags.add('-'.join(current_tag))
-            current_tag = [encoding[i]]
+            current_tag = [encoding[i].lower()]
         else:
-            current_tag.append(encoding[i])
+            current_tag.append(encoding[i].lower())
     tags.add('-'.join(current_tag))
     tags.remove('')
 

@@ -78,10 +78,17 @@ def build_model(mode: tf.estimator.ModeKeys,
     if mode != tf.estimator.ModeKeys.PREDICT:
         hot_title_bio = tf.one_hot(labels.title_bio, BIO_ENCODING_SIZE)
         hot_content_bio = tf.one_hot(labels.content_bio, BIO_ENCODING_SIZE)
-        title_mask = tf.sequence_mask(features.title_length, tf.reduce_max(features.title_length), tf.float32)
-        content_mask = tf.sequence_mask(features.content_length, tf.reduce_max(features.content_length), tf.float32)
-        title_bio_loss = tf.losses.softmax_cross_entropy(hot_title_bio, title_bio_logits, title_mask)
-        content_bio_loss = tf.losses.softmax_cross_entropy(hot_content_bio, content_bio_logits, content_mask)
+        title_masks = Masks(labels.title_bio, features.title_length)
+        content_masks = Masks(labels.content_bio, features.content_length)
+
+        title_bio_loss = tf.losses.softmax_cross_entropy(
+            hot_title_bio,
+            title_bio_logits,
+            title_masks.loss_weights)
+        content_bio_loss = tf.losses.softmax_cross_entropy(
+            hot_content_bio,
+            content_bio_logits,
+            content_masks.loss_weights)
 
         loss = tf.losses.get_total_loss()
         tf.summary.scalar('title_loss', title_bio_loss)
@@ -94,12 +101,49 @@ def build_model(mode: tf.estimator.ModeKeys,
             optimizer="Adam")
 
         if mode == tf.estimator.ModeKeys.EVAL:
-            title_accuracy = tf.metrics.accuracy(labels.title_bio, title_bio_predicitons, title_mask)
-            content_accuracy = tf.metrics.accuracy(labels.content_bio, content_bio_predicitons, content_mask)
+            title_predicted_tokens = tf.cast(tf.greater(title_bio_predicitons, 0), tf.float32)
+            content_predicted_tokens = tf.cast(tf.greater(content_bio_predicitons, 0), tf.float32)
+
+            title_accuracy = tf.metrics.accuracy(
+                labels.title_bio,
+                title_bio_predicitons,
+                title_masks.length_mask,
+                name='title_accuracy')
+            content_accuracy = tf.metrics.accuracy(
+                labels.content_bio,
+                content_bio_predicitons,
+                content_masks.length_mask,
+                name='content_accuracy')
+
+            title_precision = tf.metrics.accuracy(
+                labels.title_bio,
+                title_bio_predicitons,
+                title_predicted_tokens,
+                name='title_precision')
+            content_precision = tf.metrics.accuracy(
+                labels.content_bio,
+                content_bio_predicitons,
+                content_predicted_tokens,
+                name='content_accuracy')
+
+            title_recall = tf.metrics.accuracy(
+                labels.title_bio,
+                title_bio_predicitons,
+                title_masks.annotated_tokens,
+                name='title_recall')
+            content_recall = tf.metrics.accuracy(
+                labels.content_bio,
+                content_bio_predicitons,
+                content_masks.annotated_tokens,
+                name='content_recall')
 
             eval_metric_ops = {
                 'title_accuracy': title_accuracy,
-                'content_accuracy': content_accuracy
+                'content_accuracy': content_accuracy,
+                'title_precision': title_precision,
+                'content_precision': content_precision,
+                'title_recall': title_recall,
+                'content_recall': content_recall
             }
 
     predictions = {
@@ -118,6 +162,16 @@ def build_model(mode: tf.estimator.ModeKeys,
         loss=loss,
         train_op=train_op,
         eval_metric_ops=eval_metric_ops)
+
+
+class Masks:
+    def __init__(self, tokens_bio: tf.Tensor, length: tf.Tensor):
+        base_weight = tf.expand_dims(1.0 / tf.cast(tf.maximum(tf.constant(1, dtype=tf.int64), length), tf.float32), -1)
+        self.length_mask = tf.sequence_mask(length, tf.reduce_max(length), tf.float32)
+        base_mask = self.length_mask * base_weight
+        self.annotated_tokens = tf.cast(tf.greater(tokens_bio, 0), tf.float32)
+        self.inverted_annotated_weights = 1 - self.annotated_tokens
+        self.loss_weights = self.annotated_tokens + base_mask * self.inverted_annotated_weights
 
 
 class RNNLayer:

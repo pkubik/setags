@@ -29,7 +29,7 @@ def run(action: Action, model_dir: Path, overrides: dict):
 
     # Train model
     if action == Action.TRAIN:
-        e.train(train_dir)
+        e.train(train_dir, test_dir)
 
     # Evaluate model
     if action in [Action.TRAIN, Action.TEST]:
