@@ -25,7 +25,8 @@ class Params(DictWrapper):
         self.num_epochs = 100
         self.batch_size = 64
         self.max_word_idx = None
-        self.num_rnn_units = 300
+        self.num_title_units = 400
+        self.num_content_units = 400
         self.learning_rate = 0.002
 
 
@@ -59,14 +60,13 @@ def build_model(mode: tf.estimator.ModeKeys,
 
     with tf.variable_scope("encoder"):
         with tf.variable_scope("title"):
-            title_encoder = RNNLayer(embedded_title, features.title_length, params.num_rnn_units)
+            title_encoder = RNNLayer(embedded_title, features.title_length, params.num_title_units)
         with tf.variable_scope("content"):
-            content_encoder = RNNLayer(
-                embedded_content, features.content_length, params.num_rnn_units, title_encoder.final_states_tuple)
+            content_encoder_outputs = tf.layers.dense(embedded_content, params.num_content_units, activation=tf.nn.relu)
 
     with tf.variable_scope("output"):
         title_bio_logits = tf.layers.dense(title_encoder.outputs, BIO_ENCODING_SIZE)
-        content_bio_logits = tf.layers.dense(content_encoder.outputs, BIO_ENCODING_SIZE)
+        content_bio_logits = tf.layers.dense(content_encoder_outputs, BIO_ENCODING_SIZE)
         title_bio_predictions = tf.argmax(title_bio_logits, -1)
         content_bio_predictions = tf.argmax(content_bio_logits, -1)
 
