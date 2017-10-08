@@ -67,8 +67,8 @@ def build_model(mode: tf.estimator.ModeKeys,
     with tf.variable_scope("output"):
         title_bio_logits = tf.layers.dense(title_encoder.outputs, BIO_ENCODING_SIZE)
         content_bio_logits = tf.layers.dense(content_encoder.outputs, BIO_ENCODING_SIZE)
-        title_bio_predicitons = tf.argmax(title_bio_logits, -1)
-        content_bio_predicitons = tf.argmax(content_bio_logits, -1)
+        title_bio_predictions = tf.argmax(title_bio_logits, -1)
+        content_bio_predictions = tf.argmax(content_bio_logits, -1)
 
     # Assign a default value to the train_op and loss to be passed for modes other than TRAIN
     loss = None
@@ -78,21 +78,32 @@ def build_model(mode: tf.estimator.ModeKeys,
     if mode != tf.estimator.ModeKeys.PREDICT:
         hot_title_bio = tf.one_hot(labels.title_bio, BIO_ENCODING_SIZE)
         hot_content_bio = tf.one_hot(labels.content_bio, BIO_ENCODING_SIZE)
-        title_masks = Masks(labels.title_bio, features.title_length)
-        content_masks = Masks(labels.content_bio, features.content_length)
+        title_masks = Masks(labels.title_bio, title_bio_predictions, features.title_length)
+        content_masks = Masks(labels.content_bio, content_bio_predictions, features.content_length)
 
-        title_bio_loss = tf.losses.softmax_cross_entropy(
+        title_bio_precision_loss = tf.losses.softmax_cross_entropy(
             hot_title_bio,
             title_bio_logits,
-            title_masks.loss_weights)
-        content_bio_loss = tf.losses.softmax_cross_entropy(
+            title_masks.predicted_tokens)
+        content_bio_precision_loss = tf.losses.softmax_cross_entropy(
             hot_content_bio,
             content_bio_logits,
-            content_masks.loss_weights)
+            content_masks.predicted_tokens)
+
+        title_bio_recall_loss = tf.losses.softmax_cross_entropy(
+            hot_title_bio,
+            title_bio_logits,
+            title_masks.annotated_tokens)
+        content_bio_recall_loss = tf.losses.softmax_cross_entropy(
+            hot_content_bio,
+            content_bio_logits,
+            content_masks.annotated_tokens)
 
         loss = tf.losses.get_total_loss()
-        tf.summary.scalar('title_loss', title_bio_loss)
-        tf.summary.scalar('content_loss', content_bio_loss)
+        tf.summary.scalar('title_precision_loss', title_bio_precision_loss)
+        tf.summary.scalar('content_precision_loss', content_bio_precision_loss)
+        tf.summary.scalar('title_recall_loss', title_bio_recall_loss)
+        tf.summary.scalar('content_recall_loss', content_bio_recall_loss)
 
         train_op = tf.contrib.layers.optimize_loss(
             loss=loss,
@@ -101,39 +112,36 @@ def build_model(mode: tf.estimator.ModeKeys,
             optimizer="Adam")
 
         if mode == tf.estimator.ModeKeys.EVAL:
-            title_predicted_tokens = tf.cast(tf.greater(title_bio_predicitons, 0), tf.float32)
-            content_predicted_tokens = tf.cast(tf.greater(content_bio_predicitons, 0), tf.float32)
-
             title_accuracy = tf.metrics.accuracy(
                 labels.title_bio,
-                title_bio_predicitons,
+                title_bio_predictions,
                 title_masks.length_mask,
                 name='title_accuracy')
             content_accuracy = tf.metrics.accuracy(
                 labels.content_bio,
-                content_bio_predicitons,
+                content_bio_predictions,
                 content_masks.length_mask,
                 name='content_accuracy')
 
             title_precision = tf.metrics.accuracy(
                 labels.title_bio,
-                title_bio_predicitons,
-                title_predicted_tokens,
+                title_bio_predictions,
+                title_masks.predicted_tokens,
                 name='title_precision')
             content_precision = tf.metrics.accuracy(
                 labels.content_bio,
-                content_bio_predicitons,
-                content_predicted_tokens,
-                name='content_accuracy')
+                content_bio_predictions,
+                content_masks.predicted_tokens,
+                name='content_precision')
 
             title_recall = tf.metrics.accuracy(
                 labels.title_bio,
-                title_bio_predicitons,
+                title_bio_predictions,
                 title_masks.annotated_tokens,
                 name='title_recall')
             content_recall = tf.metrics.accuracy(
                 labels.content_bio,
-                content_bio_predicitons,
+                content_bio_predictions,
                 content_masks.annotated_tokens,
                 name='content_recall')
 
@@ -150,10 +158,10 @@ def build_model(mode: tf.estimator.ModeKeys,
         'id': features.id,
         'title': features.title,
         'title_length': features.title_length,
-        'title_bio': title_bio_predicitons,
+        'title_bio': title_bio_predictions,
         'content': features.content,
         'content_length': features.content_length,
-        'content_bio': content_bio_predicitons
+        'content_bio': content_bio_predictions
     }
 
     return tf.estimator.EstimatorSpec(
@@ -165,13 +173,10 @@ def build_model(mode: tf.estimator.ModeKeys,
 
 
 class Masks:
-    def __init__(self, tokens_bio: tf.Tensor, length: tf.Tensor):
-        base_weight = tf.expand_dims(1.0 / tf.cast(tf.maximum(tf.constant(1, dtype=tf.int64), length), tf.float32), -1)
+    def __init__(self, tokens_bio: tf.Tensor, bio_predictions: tf.Tensor, length: tf.Tensor):
         self.length_mask = tf.sequence_mask(length, tf.reduce_max(length), tf.float32)
-        base_mask = self.length_mask * base_weight
         self.annotated_tokens = tf.cast(tf.greater(tokens_bio, 0), tf.float32)
-        self.inverted_annotated_weights = 1 - self.annotated_tokens
-        self.loss_weights = self.annotated_tokens + base_mask * self.inverted_annotated_weights
+        self.predicted_tokens = tf.cast(tf.greater(bio_predictions, 0), tf.float32)
 
 
 class RNNLayer:
