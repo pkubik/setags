@@ -22,11 +22,11 @@ class Labels(DictWrapper):
 
 class Params(DictWrapper):
     def __init__(self):
-        self.num_epochs = 100
+        self.num_epochs = 70
         self.batch_size = 64
         self.max_word_idx = None
-        self.num_title_units = 400
-        self.num_content_units = 400
+        self.num_title_units = 300
+        self.num_content_units = 200
         self.learning_rate = 0.002
 
 
@@ -62,7 +62,11 @@ def build_model(mode: tf.estimator.ModeKeys,
         with tf.variable_scope("title"):
             title_encoder = RNNLayer(embedded_title, features.title_length, params.num_title_units)
         with tf.variable_scope("content"):
-            content_encoder_outputs = tf.layers.dense(embedded_content, params.num_content_units, activation=tf.nn.relu)
+            title_final_state = tf.layers.dense(title_encoder.final_state,
+                                                EMBEDDING_SIZE,
+                                                use_bias=False)
+            title_affected_content = tf.expand_dims(title_final_state, -2) + embedded_content
+            content_encoder_outputs = softsign_glu(embedded_content, title_affected_content)
 
     with tf.variable_scope("output"):
         title_bio_logits = tf.layers.dense(title_encoder.outputs, BIO_ENCODING_SIZE)
@@ -115,12 +119,12 @@ def build_model(mode: tf.estimator.ModeKeys,
             title_accuracy = tf.metrics.accuracy(
                 labels.title_bio,
                 title_bio_predictions,
-                title_masks.length_mask,
+                title_masks.length,
                 name='title_accuracy')
             content_accuracy = tf.metrics.accuracy(
                 labels.content_bio,
                 content_bio_predictions,
-                content_masks.length_mask,
+                content_masks.length,
                 name='content_accuracy')
 
             title_precision = tf.metrics.accuracy(
@@ -174,7 +178,7 @@ def build_model(mode: tf.estimator.ModeKeys,
 
 class Masks:
     def __init__(self, tokens_bio: tf.Tensor, bio_predictions: tf.Tensor, length: tf.Tensor):
-        self.length_mask = tf.sequence_mask(length, tf.reduce_max(length), tf.float32)
+        self.length = tf.sequence_mask(length, tf.reduce_max(length), tf.float32)
         self.annotated_tokens = tf.cast(tf.greater(tokens_bio, 0), tf.float32)
         self.predicted_tokens = tf.cast(tf.greater(bio_predictions, 0), tf.float32)
 
@@ -197,3 +201,12 @@ class RNNLayer:
     @property
     def outputs(self):
         return tf.reduce_sum(self.outputs_tuple, axis=0)
+
+    @property
+    def final_state(self):
+        return tf.reduce_sum(self.final_states_tuple, axis=0)
+
+
+def softsign_glu(values: tf.Tensor, gate_values: tf.Tensor):
+    with tf.name_scope("softsign_glu"):
+        return tf.nn.softsign(gate_values) * values
