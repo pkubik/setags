@@ -1,4 +1,5 @@
 from typing import Iterable
+from itertools import zip_longest
 
 import numpy as np
 
@@ -67,7 +68,37 @@ def confusion_matrix_from_sets(target: set, prediction: set) -> ConfusionMatrix:
     return ret
 
 
-def confusion_matrix_from_iterables(targets: Iterable[set], predictions: Iterable[set]) -> ConfusionMatrix:
-    return sum((confusion_matrix_from_sets(target, prediction)
-                for target, prediction in zip(targets, predictions)),
-               ConfusionMatrix())
+class Example:
+    def __init__(self, key: str, tags_string: str):
+        self.key = key
+        self.tags = {i for i in tags_string.split()}
+
+
+def confusion_matrix_from_iterables(targets: Iterable[Example], predictions: Iterable[Example]) -> ConfusionMatrix:
+    targets_buffer = {}
+    predictions_buffer = {}
+    cm = ConfusionMatrix()
+
+    for target, prediction in zip_longest(targets, predictions):
+        if target is None or prediction is None:
+            raise ValueError("targets and predictions should have the same length")
+        assert isinstance(target, Example)
+        assert isinstance(prediction, Example)
+
+        if target.key == prediction.key:
+            cm += confusion_matrix_from_sets(target.tags, prediction.tags)
+        else:
+            if target.key in predictions_buffer:
+                cm += confusion_matrix_from_sets(target.tags, predictions_buffer.pop(target.key))
+            else:
+                targets_buffer[target.key] = target.tags
+
+            if prediction.key in targets_buffer:
+                cm += confusion_matrix_from_sets(targets_buffer.pop(prediction.key), prediction.tags)
+            else:
+                predictions_buffer[prediction.key] = prediction.tags
+
+    if len(targets_buffer) == len(predictions_buffer) == 0:
+        return cm
+    else:
+        raise ValueError("key of examples from targets and predictions did not match")

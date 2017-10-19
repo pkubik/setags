@@ -1,9 +1,10 @@
 import numpy as np
-from setags.metrics import confusion_matrix_from_sets, confusion_matrix_from_iterables, f1, ConfusionMatrix
+from setags.metrics import confusion_matrix_from_sets, confusion_matrix_from_iterables, f1, ConfusionMatrix, Example
 
-
-TEST_TARGET = {1, 2, 3, 4, 5}
-TEST_PREDICTION = {3, 4, 5, 6}
+TEST_TARGET = {'1', '2', '3', '4', '5'}
+TEST_TARGET_STRING = ' '.join(sorted(TEST_TARGET))
+TEST_PREDICTION = {'3', '4', '5', '6'}
+TEST_PREDICTION_STRING = ' '.join(sorted(TEST_PREDICTION))
 
 
 def test_single_example():
@@ -18,8 +19,8 @@ def test_single_example():
 
 
 def test_iterable_of_examples():
-    targets = (TEST_TARGET for _ in range(10))
-    predictions = (TEST_PREDICTION for _ in range(10))
+    targets = (Example(str(i), TEST_TARGET_STRING) for i in range(10))
+    predictions = (Example(str(i), TEST_PREDICTION_STRING) for i in range(10))
 
     cm = confusion_matrix_from_iterables(targets, predictions)
 
@@ -29,6 +30,18 @@ def test_iterable_of_examples():
 
     assert cm.precision() == 0.75
     assert cm.recall() == 0.6
+
+
+
+def test_permuted_iterable_of_examples():
+    targets = [Example("a", TEST_TARGET_STRING), Example("b", ""), Example("c", TEST_TARGET_STRING)]
+    predictions = [Example("b", ""), Example("a", TEST_PREDICTION_STRING), Example("c", TEST_PREDICTION_STRING)]
+
+    cm = confusion_matrix_from_iterables(targets, predictions)
+
+    assert cm.true_positive == 6
+    assert cm.false_positive == 2
+    assert cm.false_negative == 4
 
 
 def test_empty_iterable():
