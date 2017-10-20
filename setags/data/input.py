@@ -32,7 +32,8 @@ def create_input_fn(data_subdir: Path, batch_size: int, for_train=True, num_epoc
                 min_after_dequeue=utils.MIN_AFTER_DEQUEUE)
         else:
             examples_batch = tf.train.batch(
-                [serialized_example], batch_size=batch_size, num_threads=3, capacity=5 * batch_size)
+                [serialized_example], batch_size=batch_size, num_threads=3,
+                capacity=5 * batch_size, allow_smaller_final_batch=True)
 
         return parse_examples_batch(examples_batch)
 

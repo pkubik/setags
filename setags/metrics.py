@@ -81,7 +81,10 @@ def confusion_matrix_from_iterables(targets: Iterable[Example], predictions: Ite
 
     for target, prediction in zip_longest(targets, predictions):
         if target is None or prediction is None:
-            raise ValueError("targets and predictions should have the same length")
+            targets_left = sum(1 for _ in targets)
+            predictions_left = sum(1 for _ in predictions)
+            diff = targets_left - predictions_left
+            raise ValueError("targets and predictions should have the same length ({} more targets)".format(diff))
         assert isinstance(target, Example)
         assert isinstance(prediction, Example)
 

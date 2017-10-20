@@ -1,9 +1,34 @@
 import argparse
 from pathlib import Path
+import csv
 
 import setags.data.utils as du
+from setags.metrics import confusion_matrix_from_iterables, Example, f1
 from setags.utils import cprint
 from setags.logging import setup_logger
+
+
+def compare_files(target_path: Path, prediction_path: Path):
+    with target_path.open() as target_file, prediction_path.open() as prediction_file:
+        target_reader = csv.reader(target_file)
+        prediction_reader = csv.reader(prediction_file)
+
+        # skip the headers
+        next(target_reader)
+        next(prediction_reader)
+
+        cm = confusion_matrix_from_iterables((Example(row[0], row[-1]) for row in target_reader),
+                                             (Example(row[0], row[-1]) for row in prediction_reader))
+
+    precision_score = cm.precision()
+    recall_score = cm.recall()
+    f1_score = f1(precision_score, recall_score)
+
+    return {
+        "f1": f1_score,
+        "precision": precision_score,
+        "recall": recall_score
+    }
 
 
 class CLI:
@@ -38,7 +63,8 @@ def main():
 
     cprint("Using '{}' as the targets.".format(str(target_path)))
     cprint("Using '{}' as the predictions.".format(str(predictions_path)))
-    raise NotImplementedError()
+
+    cprint(compare_files(target_path, predictions_path))
 
 
 if __name__ == '__main__':
